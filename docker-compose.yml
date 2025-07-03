@@ -1,4 +1,5 @@
 version: "3.8"
+
 services:
   airsim-swarm-dev:
     build: .
@@ -7,11 +8,8 @@ services:
       - ./:/home/devuser/airsim-swarm
     environment:
       - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
     network_mode: "host"
     stdin_open: true
     tty: true
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - capabilities: [gpu]
+    user: "${USER_ID:-devuser}"
