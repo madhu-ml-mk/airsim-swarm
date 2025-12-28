@@ -83,12 +83,10 @@ USER root
 RUN rosdep init || true && rosdep update
 USER devuser
 
-# -------------------------------
-# Entrypoint
-# -------------------------------
-COPY entrypoint.sh /home/devuser/entrypoint.sh
-RUN sudo chown devuser:devuser /home/devuser/entrypoint.sh && \
-    sudo chmod +x /home/devuser/entrypoint.sh
+# ---- Entrypoint ----
+USER root
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+USER devuser
 
-ENTRYPOINT ["/home/devuser/entrypoint.sh"]
-CMD ["bash"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
