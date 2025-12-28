@@ -1,0 +1,14 @@
+{
+	"SettingsVersion": 1.2,
+	"SimMode": "Multirotor",
+	"Vehicles": {
+		"Drone1": {
+			"VehicleType": "PX4Multirotor",
+			"UseSerial": false,
+			"UseTcp": true,
+			"TcpPort": 4560,
+			"ControlPort": 14540,
+			"ControlIp": "px4-sitl"
+		}
+	}
+}

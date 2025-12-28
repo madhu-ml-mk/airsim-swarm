@@ -1,55 +1,94 @@
+﻿# ===============================
+# PX4 + AirSim + ROS 2 Humble
+# Ubuntu 22.04 (REQUIRED)
+# ===============================
 FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Etc/UTC
 
-# Base tools and locales
+# -------------------------------
+# Core system utilities
+# -------------------------------
 RUN apt-get update && apt-get install -y \
-    curl git python3-pip python3-venv build-essential cmake wget lsb-release \
-    gnupg2 software-properties-common locales ca-certificates sudo && \
-    locale-gen en_US.UTF-8
+    sudo curl wget git nano htop net-tools iputils-ping \
+    software-properties-common lsb-release gnupg2 \
+    build-essential cmake ninja-build g++ \
+    python3 python3-pip python3-venv python3-dev \
+    unzip zip pkg-config \
+    libtool libxml2-dev libtinyxml2-dev \
+    libopencv-dev ffmpeg \
+    libboost-all-dev \
+    qtbase5-dev qtchooser \
+    libqt5widgets5 libqt5gui5 libqt5core5a \
+    openjdk-11-jdk \
+    && rm -rf /var/lib/apt/lists/*
 
-ENV LANG=en_US.UTF-8
-ENV LC_ALL=en_US.UTF-8
+# -------------------------------
+# Add ROS 2 Humble repository (CORRECT WAY)
+# -------------------------------
+RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+    | gpg --dearmor -o /usr/share/keyrings/ros-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
+    http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" \
+    > /etc/apt/sources.list.d/ros2.list
 
-# Fix keyring method (no apt-key)
-RUN mkdir -p /etc/apt/keyrings && \
-    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /etc/apt/keyrings/ros-archive-keyring.gpg && \
-    echo "deb [signed-by=/etc/apt/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2-latest.list
+# -------------------------------
+# Add Gazebo repository (CORRECT WAY)
+# -------------------------------
+RUN curl -sSL https://packages.osrfoundation.org/gazebo.key \
+    | gpg --dearmor -o /usr/share/keyrings/gazebo-archive-keyring.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/gazebo-archive-keyring.gpg] \
+    http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" \
+    > /etc/apt/sources.list.d/gazebo-stable.list
 
-# Fix broken security source (replace security.ubuntu.com)
-RUN sed -i 's|http://security.ubuntu.com|http://archive.ubuntu.com|g' /etc/apt/sources.list && apt-get update
+# -------------------------------
+# Install ROS 2 Humble (NO Gazebo yet)
+# -------------------------------
+RUN apt-get update && apt-get install -y \
+    ros-humble-desktop \
+    python3-colcon-common-extensions \
+    python3-rosdep \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install ROS2 and tools
-RUN apt-get install -y ros-humble-desktop python3-rosdep python3-colcon-common-extensions && \
-    rosdep init || true && rosdep update || true
-
-# AirSim/AI-related dependencies
-RUN apt-get install -y ninja-build python3-empy python3-toml python3-numpy \
-    python3-yaml protobuf-compiler libeigen3-dev libopencv-dev
-
-# Python venv
-RUN python3 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-
-# Upgrade pip and install Python dependencies
-RUN pip install --upgrade pip setuptools wheel
-RUN pip install numpy pandas torch torchvision torchaudio \
-    jupyterlab opencv-python-headless mavsdk requests
-
-# Create root password
-RUN echo "root:root123" | chpasswd
-
-# Create non-root user and password
-RUN useradd -ms /bin/bash devuser && echo "devuser:devuser123" | chpasswd && \
-    usermod -aG sudo devuser
-
-# Entrypoint for devuser
-COPY entrypoint.sh /home/devuser/entrypoint.sh
-RUN chown devuser:devuser /home/devuser/entrypoint.sh && chmod +x /home/devuser/entrypoint.sh
+# -------------------------------
+# Create non-root user
+# -------------------------------
+RUN useradd -ms /bin/bash devuser && \
+    echo "devuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 USER devuser
 WORKDIR /home/devuser
-RUN mkdir -p ros2_ws/src
+
+# -------------------------------
+# Python virtual environment
+# -------------------------------
+RUN python3 -m venv /home/devuser/venv
+ENV PATH="/home/devuser/venv/bin:$PATH"
+
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install numpy mavsdk==1.3.0 catkin_pkg empy lark-parser
+
+# -------------------------------
+# PX4 Autopilot (SITL)
+# -------------------------------
+RUN git clone https://github.com/PX4/PX4-Autopilot.git --depth=1 && \
+    cd PX4-Autopilot && \
+    git submodule update --init --recursive
+
+# -------------------------------
+# ROS dependency initialization
+# -------------------------------
+USER root
+RUN rosdep init || true && rosdep update
+USER devuser
+
+# -------------------------------
+# Entrypoint
+# -------------------------------
+COPY entrypoint.sh /home/devuser/entrypoint.sh
+RUN sudo chown devuser:devuser /home/devuser/entrypoint.sh && \
+    sudo chmod +x /home/devuser/entrypoint.sh
 
 ENTRYPOINT ["/home/devuser/entrypoint.sh"]
 CMD ["bash"]

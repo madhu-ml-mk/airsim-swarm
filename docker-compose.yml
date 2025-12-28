@@ -1,15 +1,17 @@
-version: "3.8"
+version: '3.8'
 
 services:
-  airsim-swarm-dev:
+  px4:
     build: .
-    container_name: airsim-swarm-dev
+    container_name: airsim-px4
+    network_mode: "host"  # Required for AirSim TCP communication
     volumes:
-      - ./:/home/devuser/airsim-swarm
-    environment:
-      - DISPLAY=${DISPLAY}
-      - QT_X11_NO_MITSHM=1
-    network_mode: "host"
+      - ./:/home/devuser/airsim-swarm   # Mount project folder
+    working_dir: /home/devuser/airsim-swarm
     stdin_open: true
     tty: true
-    user: "${USER_ID:-devuser}"
+    environment:
+      - DISPLAY=${DISPLAY}              # Forward X11 for GUI (if needed)
+      - QT_X11_NO_MITSHM=1
+    devices:
+      - /dev/dri:/dev/dri              # Optional: GPU acceleration for Gazebo/AirSim

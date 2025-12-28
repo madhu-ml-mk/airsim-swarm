@@ -1,0 +1,21 @@
+﻿version: "3.8"
+
+services:
+  airsim-swarm-dev:
+    build: .
+    container_name: airsim-swarm-dev
+    networks:
+     swarm-net:
+     driver: bridge
+
+    volumes:
+      - ./:/home/devuser/airsim-swarm
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - XAUTHORITY=${XAUTHORITY}
+      - SIM_BACKEND=${SIM_BACKEND:-airsim}
+    stdin_open: true
+    tty: true
+    user: "${USER_ID:-devuser}"
