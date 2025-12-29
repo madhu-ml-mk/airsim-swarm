@@ -1,11 +1,12 @@
 ﻿# ===============================
 # PX4 + AirSim + ROS 2 Humble
-# Ubuntu 22.04 (REQUIRED)
+# Ubuntu 22.04
 # ===============================
 FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Etc/UTC
+ENV PATH="/home/devuser/venv/bin:$PATH"
 
 # -------------------------------
 # Core system utilities
@@ -25,7 +26,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # -------------------------------
-# Add ROS 2 Humble repository (CORRECT WAY)
+# Add ROS 2 Humble repository
 # -------------------------------
 RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
     | gpg --dearmor -o /usr/share/keyrings/ros-archive-keyring.gpg && \
@@ -34,16 +35,7 @@ RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
     > /etc/apt/sources.list.d/ros2.list
 
 # -------------------------------
-# Add Gazebo repository (CORRECT WAY)
-# -------------------------------
-RUN curl -sSL https://packages.osrfoundation.org/gazebo.key \
-    | gpg --dearmor -o /usr/share/keyrings/gazebo-archive-keyring.gpg && \
-    echo "deb [signed-by=/usr/share/keyrings/gazebo-archive-keyring.gpg] \
-    http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" \
-    > /etc/apt/sources.list.d/gazebo-stable.list
-
-# -------------------------------
-# Install ROS 2 Humble (NO Gazebo yet)
+# Install ROS 2 Humble
 # -------------------------------
 RUN apt-get update && apt-get install -y \
     ros-humble-desktop \
@@ -64,17 +56,18 @@ WORKDIR /home/devuser
 # Python virtual environment
 # -------------------------------
 RUN python3 -m venv /home/devuser/venv
-ENV PATH="/home/devuser/venv/bin:$PATH"
 
-RUN pip install --upgrade pip setuptools wheel && \
-    pip install numpy mavsdk==1.3.0 catkin_pkg empy lark-parser
+# Upgrade pip & preinstall PX4 Python dependencies
+RUN /home/devuser/venv/bin/pip install --upgrade pip setuptools wheel && \
+    /home/devuser/venv/bin/pip install \
+        pyserial empy toml kconfiglib pandas numpy pyulog \
+        catkin_pkg lark-parser
 
 # -------------------------------
 # PX4 Autopilot (SITL)
 # -------------------------------
 RUN git clone https://github.com/PX4/PX4-Autopilot.git --depth=1 && \
-    cd PX4-Autopilot && \
-    git submodule update --init --recursive
+    /home/devuser/venv/bin/pip install -r PX4-Autopilot/Tools/setup/requirements.txt
 
 # -------------------------------
 # ROS dependency initialization
@@ -83,10 +76,19 @@ USER root
 RUN rosdep init || true && rosdep update
 USER devuser
 
-# ---- Entrypoint ----
+# -------------------------------
+# Pre-build PX4 SITL (cached)
+# -------------------------------
+RUN cd /home/devuser/PX4-Autopilot && \
+    DONT_RUN=1 make px4_sitl_default none_iris
+
+# -------------------------------
+# Entrypoint
+# -------------------------------
 USER root
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 USER devuser
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["bash"]
