@@ -58,7 +58,7 @@ RUN python3 -m venv /home/devuser/venv
 ENV PATH="/home/devuser/venv/bin:$PATH"
 
 # -----------------------------------------------------
-# Python deps REQUIRED by PX4
+# Python deps REQUIRED by PX4 (STRICT versions)
 # -----------------------------------------------------
 RUN pip install --upgrade pip setuptools wheel && \
     pip install \
@@ -70,9 +70,10 @@ RUN pip install --upgrade pip setuptools wheel && \
     jsonschema \
     future \
     lxml \
-    empy \
     catkin_pkg \
-    lark-parser
+    lark-parser \
+    pyros-genmsg \
+    empy==3.3.4
 
 # -----------------------------------------------------
 # PX4 Autopilot (SITL)
