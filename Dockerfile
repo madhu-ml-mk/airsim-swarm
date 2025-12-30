@@ -1,101 +1,68 @@
-﻿# =====================================================
-# PX4 + ROS 2 Humble + AirSim (SITL)
-# Ubuntu 22.04 (Jammy)
-# =====================================================
-FROM ubuntu:22.04
+﻿FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Etc/UTC
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+ENV PX4_AUTOSTART=1
 
-# -----------------------------------------------------
-# Core system packages (SAFE, NO ROS/Gazebo YET)
-# -----------------------------------------------------
+# -------------------------------
+# Core system packages (PX4 only)
+# -------------------------------
 RUN apt-get update && apt-get install -y \
-    sudo curl wget git nano htop net-tools iputils-ping \
-    software-properties-common lsb-release gnupg2 \
+    sudo curl wget git nano \
     build-essential cmake ninja-build g++ \
-    python3 python3-pip python3-venv python3-dev \
-    unzip zip pkg-config \
-    libtool libxml2-dev libtinyxml2-dev \
-    libopencv-dev ffmpeg \
-    libboost-all-dev \
-    qtbase5-dev qtchooser \
-    libqt5widgets5 libqt5gui5 libqt5core5a \
-    openjdk-11-jdk \
+    python3 python3-pip python3-dev python3-venv \
+    pkg-config \
+    libxml2-dev libxslt1-dev \
+    net-tools iputils-ping \
     && rm -rf /var/lib/apt/lists/*
 
-# -----------------------------------------------------
-# ROS 2 Humble repository (OFFICIAL)
-# -----------------------------------------------------
-RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
-    | gpg --dearmor -o /usr/share/keyrings/ros-archive-keyring.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
-    http://packages.ros.org/ros2/ubuntu jammy main" \
-    > /etc/apt/sources.list.d/ros2.list
-
-# -----------------------------------------------------
-# Install ROS 2 Humble (NO Gazebo)
-# -----------------------------------------------------
-RUN apt-get update && apt-get install -y \
-    ros-humble-desktop \
-    python3-colcon-common-extensions \
-    python3-rosdep \
-    && rm -rf /var/lib/apt/lists/*
-
-# -----------------------------------------------------
-# Create non-root user
-# -----------------------------------------------------
+# -------------------------------
+# User
+# -------------------------------
 RUN useradd -ms /bin/bash devuser && \
     echo "devuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 USER devuser
 WORKDIR /home/devuser
 
-# -----------------------------------------------------
-# Python virtual environment
-# -----------------------------------------------------
+# -------------------------------
+# Python venv (PX4 safe)
+# -------------------------------
 RUN python3 -m venv /home/devuser/venv
 ENV PATH="/home/devuser/venv/bin:$PATH"
 
-# -----------------------------------------------------
-# Python deps REQUIRED by PX4 (STRICT versions)
-# -----------------------------------------------------
 RUN pip install --upgrade pip setuptools wheel && \
     pip install \
     numpy \
-    mavsdk==1.3.0 \
-    kconfiglib \
-    pyyaml \
+    mavsdk \
+    empy==3.3.4 \
     jinja2 \
-    jsonschema \
-    future \
-    lxml \
-    catkin_pkg \
     lark-parser \
     pyros-genmsg \
-    empy==3.3.4
+    catkin_pkg \
+    pyyaml \
+    kconfiglib \
+    jsonschema \
+    lxml
 
-# -----------------------------------------------------
-# PX4 Autopilot (SITL)
-# -----------------------------------------------------
-RUN git clone https://github.com/PX4/PX4-Autopilot.git --depth=1 && \
+
+# -------------------------------
+# PX4 Autopilot
+# -------------------------------
+RUN git clone https://github.com/PX4/PX4-Autopilot.git && \
     cd PX4-Autopilot && \
     git submodule update --init --recursive
 
-# -----------------------------------------------------
-# ROS dependency init
-# -----------------------------------------------------
-USER root
-RUN rosdep init || true && rosdep update
-USER devuser
-
-# -----------------------------------------------------
 # Entrypoint
-# -----------------------------------------------------
 USER root
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN sed -i 's/\r$//' /usr/local/bin/entrypoint.sh && \
-    chmod +x /usr/local/bin/entrypoint.sh
-USER devuser
 
+# 🔐 HARD FIX: strip BOM + force LF
+RUN sed -i '1s/^\xEF\xBB\xBF//' /usr/local/bin/entrypoint.sh && \
+    sed -i 's/\r$//' /usr/local/bin/entrypoint.sh && \
+    chmod +x /usr/local/bin/entrypoint.sh
+
+USER devuser
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
