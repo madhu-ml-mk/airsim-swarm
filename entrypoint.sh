@@ -8,13 +8,13 @@ fi
 
 echo "Container started."
 
-# If PX4_AUTOSTART=1 → start PX4
+cd /home/devuser/PX4-Autopilot
+
+# Start PX4 if requested
 if [ "$PX4_AUTOSTART" = "1" ]; then
     echo "Starting PX4 SITL (AirSim mode)..."
-    cd /home/devuser/PX4-Autopilot
-    # Match AirSim settings.json (UDP port)
-    make px4_sitl_default none_iris
-else
-    # If PX4_AUTOSTART is not 1, drop to bash for debugging
-    exec bash
+    make px4_sitl_default none_iris &
 fi
+
+# Always drop into bash (keeps container alive)
+exec bash
